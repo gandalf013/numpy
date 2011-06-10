@@ -2,7 +2,7 @@
 #define _NPY_PRIVATE__DATETIME_H_
 
 NPY_NO_EXPORT void
-numpy_pydatetime_import();
+numpy_pydatetime_import(void);
 
 /*
  * This function returns the a new reference to the

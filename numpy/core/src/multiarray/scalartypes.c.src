@@ -649,7 +649,7 @@ timedeltatype_repr(PyObject *self)
 
     scal = (PyTimedeltaScalarObject *)self;
 
-    ret = PyUString_FromFormat("numpy.timedelta64(%lld", scal->obval);
+    ret = PyUString_FromFormat("numpy.timedelta64(%lld", (long long)scal->obval);
     PyUString_ConcatAndDel(&ret,
             PyUString_FromString(",'"));
     ret = append_metastr_to_string(&scal->obmeta, 1, ret);
@@ -691,6 +691,7 @@ static char *_datetime_verbose_strings[] = {
     "years",
     "months",
     "weeks",
+    "business days",
     "days",
     "hours",
     "minutes",
