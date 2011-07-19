@@ -713,8 +713,8 @@ typedef struct {
      */
     char *tmp_buffer;
     /*
-     * The metadata for when dealing with Months or Years
-     * which behave non-linearly with respect to the other
+     * The metadata for when dealing with Months, Years, or
+     * Business days, which behave non-linearly with respect to the other
      * units.
      */
     PyArray_DatetimeMetaData src_meta, dst_meta;
@@ -981,14 +981,16 @@ get_nbo_cast_datetime_transfer_function(int aligned,
 
     /*
      * Special case the datetime (but not timedelta) with the nonlinear
-     * units (years and months). For timedelta, an average
+     * units (years, months and business days). For timedelta, an average
      * years and months value is used.
      */
     if (src_dtype->type_num == NPY_DATETIME &&
             (src_meta->base == NPY_FR_Y ||
              src_meta->base == NPY_FR_M ||
+             src_meta->base == NPY_FR_B ||
              dst_meta->base == NPY_FR_Y ||
-             dst_meta->base == NPY_FR_M)) {
+             dst_meta->base == NPY_FR_M ||
+             dst_meta->base == NPY_FR_B)) {
         memcpy(&data->src_meta, src_meta, sizeof(data->src_meta));
         memcpy(&data->dst_meta, dst_meta, sizeof(data->dst_meta));
         *out_stransfer = &_strided_to_strided_datetime_general_cast;

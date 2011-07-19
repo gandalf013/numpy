@@ -718,6 +718,7 @@ get_datetime_iso_8601_strlen(int local, NPY_DATETIMEUNIT base)
         case NPY_FR_h:
             len += 3;  /* "T##" */
         case NPY_FR_D:
+        case NPY_FR_B:
         case NPY_FR_W:
             len += 3;  /* "-##" */
         case NPY_FR_M:
@@ -859,12 +860,12 @@ make_iso_8601_datetime(npy_datetimestruct *dts, char *outstr, int outlen,
         }
     }
     /*
-     * Print weeks with the same precision as days.
+     * Print business days and weeks with the same precision as days.
      *
      * TODO: Could print weeks with YYYY-Www format if the week
      *       epoch is a Monday.
      */
-    else if (base == NPY_FR_W) {
+    else if (base == NPY_FR_B || base == NPY_FR_W) {
         base = NPY_FR_D;
     }
 
@@ -937,7 +938,7 @@ make_iso_8601_datetime(npy_datetimestruct *dts, char *outstr, int outlen,
      */
     if (casting != NPY_UNSAFE_CASTING) {
         /* Producing a date as a local time is always 'unsafe' */
-        if (base <= NPY_FR_D && local) {
+        if (base <= NPY_FR_B && local) {
             PyErr_SetString(PyExc_TypeError, "Cannot create a local "
                         "timezone-based date string from a NumPy "
                         "datetime without forcing 'unsafe' casting");

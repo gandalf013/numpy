@@ -681,7 +681,7 @@ timedeltatype_repr(PyObject *self)
         ret = PyUString_FromString("numpy.timedelta64('NaT'");
     }
     else {
-        ret = PyUString_FromFormat("numpy.timedelta64(%lld", scal->obval);
+        ret = PyUString_FromFormat("numpy.timedelta64(%lld", (long long)scal->obval);
     }
     /* The metadata unit */
     if (scal->obmeta.base == NPY_FR_GENERIC) {
@@ -742,6 +742,7 @@ static char *_datetime_verbose_strings[NPY_DATETIME_NUMUNITS] = {
     "years",
     "months",
     "weeks",
+    "business days",
     "days",
     "hours",
     "minutes",

@@ -40,6 +40,7 @@ NPY_NO_EXPORT char *_datetime_strings[NPY_DATETIME_NUMUNITS] = {
     NPY_STR_Y,
     NPY_STR_M,
     NPY_STR_W,
+    NPY_STR_B,
     NPY_STR_D,
     NPY_STR_h,
     NPY_STR_m,
@@ -52,6 +53,27 @@ NPY_NO_EXPORT char *_datetime_strings[NPY_DATETIME_NUMUNITS] = {
     NPY_STR_as,
     "generic"
 };
+
+#define ALOK_DEBUG  1
+
+/* Gets the day of the week for a datetime64[D] value */
+static int
+get_day_of_week(npy_datetime date)
+{
+    int day_of_week;
+
+    /* Get the day of the week for 'date' (1970-01-05 is Monday) */
+    day_of_week = (int)((date - 4) % 7);
+    if (day_of_week < 0) {
+        day_of_week += 7;
+    }
+
+#ifdef ALOK_DEBUG
+    fprintf(stderr, "day_of_week: %lld -> %d\n",
+            (long long)date, day_of_week);
+#endif
+    return day_of_week;
+}
 
 /* Days per month, regular year and leap year */
 NPY_NO_EXPORT int _days_per_month_table[2][12] = {
@@ -235,6 +257,44 @@ set_datetimestruct_days(npy_int64 days, npy_datetimestruct *dts)
     }
 }
 
+/* get the number of weekdays between 'first' and 'second', where they represent
+ * the number of days since 1970-01-01 */
+static int
+get_nweekdays(npy_int64 first, npy_int64 second)
+{
+    int dotw_first, dotw_second;
+    int ndays;
+    int swapped = 0;
+#ifdef ALOK_DEBUG
+    fprintf(stderr, "get_nweekdays: %ld - %ld = ", (long)second, (long)first);
+#endif
+    if (second < first) {
+        npy_int64 tmp = first;
+        first = second;
+        second = tmp;
+        swapped = 1;
+    }
+    dotw_first = get_day_of_week(first);
+    dotw_second = get_day_of_week(second);
+    if (dotw_first > 4) {
+        dotw_first = 4;
+    }
+    if (dotw_second > 4) {
+        dotw_second = 4;
+    }
+    if (dotw_second < dotw_first) {
+        dotw_second += 5;
+    }
+    ndays = ((second - first) / 7) * 5 + (dotw_second - dotw_first);
+    if (swapped) {
+        ndays = -ndays;
+    }
+#ifdef ALOK_DEBUG
+    fprintf(stderr, "%d\n", ndays);
+#endif
+    return ndays;
+}
+
 /*
  * Converts a datetime from a datetimestruct to a datetime based
  * on some metadata. The date is assumed to be valid.
@@ -286,6 +346,13 @@ convert_datetimestruct_to_datetime(PyArray_DatetimeMetaData *meta,
                 else {
                     ret = (days - 6) / 7;
                 }
+                break;
+            case NPY_FR_B:
+                ret = get_nweekdays(0, days);
+#ifdef ALOK_DEBUG
+                fprintf(stderr, "convert_datetimestruct_to_datetime: %d\n",
+                        (int)ret);
+#endif
                 break;
             case NPY_FR_D:
                 ret = days;
@@ -414,6 +481,7 @@ convert_datetime_to_datetimestruct(PyArray_DatetimeMetaData *meta,
                                     npy_datetime dt,
                                     npy_datetimestruct *out)
 {
+    npy_int64 absdays;
     npy_int64 perday;
 
     /* Initialize the output to all zeros */
@@ -462,6 +530,31 @@ convert_datetime_to_datetimestruct(PyArray_DatetimeMetaData *meta,
         case NPY_FR_W:
             /* A week is 7 days */
             set_datetimestruct_days(dt * 7, out);
+            break;
+
+        case NPY_FR_B:
+            /* Number of business days since Thursday, 1-1-70 */
+            /*
+             * A business day is M T W Th F (i.e. all but Sat and Sun.)
+             * Convert the business day to the number of actual days.
+             *
+             * Must convert [0,1,2,3,4,5,6,7,...] to
+             *                  [0,1,4,5,6,7,8,11,...]
+             * and  [...,-9,-8,-7,-6,-5,-4,-3,-2,-1,0] to
+             *        [...,-13,-10,-9,-8,-7,-6,-3,-2,-1,0]
+             */
+            if (dt >= 0) {
+                absdays = 7 * ((dt + 3) / 5) + ((dt + 3) % 5) - 3;
+            }
+            else {
+                /* Recall how C computes / and % with negative numbers */
+                absdays = 7 * ((dt - 1) / 5) + ((dt - 1) % 5) + 1;
+            }
+#ifdef ALOK_DEBUG
+            fprintf(stderr, "convert_datetime_to_datetimestruct: converted "
+                    "dt=%d to %d\n", (int)dt, (int)absdays);
+#endif
+            set_datetimestruct_days(absdays, out);
             break;
 
         case NPY_FR_D:
@@ -664,7 +757,7 @@ PyArray_DatetimeToDatetimeStruct(npy_datetime val, NPY_DATETIMEUNIT fr,
 
 /*
  * FIXME: Overflow is not handled at all
- *   To convert from Years or Months,
+ *   To convert from Years, Months, and Business Days,
  *   multiplication by the average is done
  */
 
@@ -1018,8 +1111,10 @@ static NPY_DATETIMEUNIT _multiples_table[16][4] = {
     {NPY_FR_M, NPY_FR_W, NPY_FR_D},
     {4,  30, 720},                            /* NPY_FR_M */
     {NPY_FR_W, NPY_FR_D, NPY_FR_h},
-    {7,  168, 10080},                         /* NPY_FR_W */
-    {NPY_FR_D, NPY_FR_h, NPY_FR_m},
+    {5, 7,  168, 10080},                      /* NPY_FR_W */
+    {NPY_FR_B, NPY_FR_D, NPY_FR_h, NPY_FR_m},
+    {24, 1440, 86400},                        /* NPY_FR_B */
+    {NPY_FR_h, NPY_FR_m, NPY_FR_s},
     {24, 1440, 86400},                        /* NPY_FR_D */
     {NPY_FR_h, NPY_FR_m, NPY_FR_s},
     {60, 3600},                               /* NPY_FR_h */
@@ -1109,13 +1204,14 @@ convert_datetime_divisor_to_multiple(PyArray_DatetimeMetaData *meta,
 
 /*
  * Lookup table for factors between datetime units, except
- * for years and months.
+ * for years, months and business days.
  */
 static npy_uint32
 _datetime_factors[] = {
     1,  /* Years - not used */
     1,  /* Months - not used */
     7,  /* Weeks -> Days */
+    1,  /* Business days - not used */
     24, /* Days -> Hours */
     60, /* Hours -> Minutes */
     60, /* Minutes -> Seconds */
@@ -1315,11 +1411,17 @@ datetime_metadata_divides(
     /* If the bases are different, factor in a conversion */
     if (dividend->base != divisor->base) {
         /*
-         * Years and Months are incompatible with
+         * Years, Months and Business days are incompatible with
          * all other units (except years and months are compatible
          * with each other).
          */
-        if (dividend->base == NPY_FR_Y) {
+        if (dividend->base == NPY_FR_B || divisor->base == NPY_FR_B) {
+#ifdef ALOK_DEBUG
+            fprintf(stderr, "datetime_metadata_divides: 0\n");
+#endif
+            return 0;
+        }
+        else if (dividend->base == NPY_FR_Y) {
             if (divisor->base == NPY_FR_M) {
                 num1 *= 12;
             }
@@ -1631,7 +1733,7 @@ compute_datetime_metadata_greatest_common_divisor(
     }
     else {
         /*
-         * Years and Months are incompatible with
+         * Years, Months and Business days are incompatible with
          * all other units (except years and months are compatible
          * with each other).
          */
@@ -1646,6 +1748,30 @@ compute_datetime_metadata_greatest_common_divisor(
             else {
                 base = meta2->base;
                 /* Don't multiply num1 since there is no even factor */
+            }
+        }
+        else if (meta1->base == NPY_FR_B || meta2->base == NPY_FR_B) {
+            if (strict_with_nonlinear_units1 || strict_with_nonlinear_units2) {
+                goto incompatible_units;
+            }
+            else {
+                if (meta1->base > meta2->base) {
+                    base = meta1->base;
+                }
+                else {
+                    base = meta2->base;
+                }
+                fprintf(stderr, "compute_datetime_metadata_greatest_common_divisor: bases: %d, %d, using %d\n", (int)meta1->base, (int)meta2->base, (int)base);
+                /*
+                 * When combining business days with other units, end
+                 * up with days instead of business days.
+                 */
+                if (base == NPY_FR_B) {
+#ifdef ALOK_DEBUG
+                    fprintf(stderr, "compute_datetime_metadata_greatest_common_divisor: converting business days to regular days\n");
+#endif
+                    base = NPY_FR_D;
+                }
             }
         }
         else if (meta2->base == NPY_FR_Y) {
@@ -1874,6 +2000,8 @@ parse_datetime_unit_from_string(char *str, Py_ssize_t len, char *metastr)
                 return NPY_FR_M;
             case 'W':
                 return NPY_FR_W;
+            case 'B':
+                return NPY_FR_B;
             case 'D':
                 return NPY_FR_D;
             case 'h':
