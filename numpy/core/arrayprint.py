@@ -710,7 +710,7 @@ class DatetimeFormat(object):
         # If timezone is default, make it 'local' or 'UTC' based on the unit
         if timezone is None:
             # Date units -> UTC, time units -> local
-            if unit in ('Y', 'M', 'W', 'D'):
+            if unit in ('Y', 'M', 'W', 'B', 'D'):
                 self.timezone = 'UTC'
             else:
                 self.timezone = 'local'

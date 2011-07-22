@@ -206,6 +206,7 @@ days_to_yearsdays(npy_int64 *days_)
         }
     }
 
+    fprintf(stderr, "days_to_yearsdays: %lld -> %lld, return %lld\n", (long long)*days_, (long long)days, (long long)(year + 2000));
     *days_ = days;
     return year + 2000;
 }
@@ -249,6 +250,7 @@ set_datetimestruct_days(npy_int64 days, npy_datetimestruct *dts)
         if (days < month_lengths[i]) {
             dts->month = i + 1;
             dts->day = days + 1;
+            fprintf(stderr, "set_datetimestruct_days: setting month = %d, day = %lld\n", i+1, (long long)(days + 1));
             return;
         }
         else {
@@ -265,9 +267,6 @@ get_nweekdays(npy_int64 first, npy_int64 second)
     int dotw_first, dotw_second;
     int ndays;
     int swapped = 0;
-#ifdef ALOK_DEBUG
-    fprintf(stderr, "get_nweekdays: %ld - %ld = ", (long)second, (long)first);
-#endif
     if (second < first) {
         npy_int64 tmp = first;
         first = second;
@@ -276,6 +275,9 @@ get_nweekdays(npy_int64 first, npy_int64 second)
     }
     dotw_first = get_day_of_week(first);
     dotw_second = get_day_of_week(second);
+#ifdef ALOK_DEBUG
+    fprintf(stderr, "get_nweekdays: %ld - %ld = ", (long)second, (long)first);
+#endif
     if (dotw_first > 4) {
         dotw_first = 4;
     }
@@ -1334,6 +1336,10 @@ get_datetime_conversion_factor(PyArray_DatetimeMetaData *src_meta,
                 /* Year -> Day */
                 num *= (97 + 400*365);
                 denom *= 400;
+                if (dst_base == NPY_FR_B) {
+                    num *= 5;
+                    denom *= 7;
+                }
                 /* Day -> dst_base */
                 num *= get_datetime_units_factor(NPY_FR_D, dst_base);
             }
@@ -1347,6 +1353,10 @@ get_datetime_conversion_factor(PyArray_DatetimeMetaData *src_meta,
                 /* Month -> Day */
                 num *= (97 + 400*365);
                 denom *= 400*12;
+                if (dst_base == NPY_FR_B) {
+                    num *= 5;
+                    denom *= 7;
+                }
                 /* Day -> dst_base */
                 num *= get_datetime_units_factor(NPY_FR_D, dst_base);
             }
@@ -2374,6 +2384,7 @@ convert_pydatetime_to_datetimestruct(PyObject *obj, npy_datetimestruct *out,
     PyObject *tmp;
     int isleap;
 
+    fprintf(stderr, "convert_pydatetime_to_datetimestruct\n");
     /* Initialize the output to all zeros */
     memset(out, 0, sizeof(npy_datetimestruct));
     out->month = 1;
@@ -3062,6 +3073,7 @@ convert_datetime_to_pyobject(npy_datetime dt, PyArray_DatetimeMetaData *meta)
 {
     PyObject *ret = NULL;
     npy_datetimestruct dts;
+    fprintf(stderr, "convert_datetime_to_pyobject: %lld\n", (long long)dt);
 
     /*
      * Convert NaT (not-a-time) and any value with generic units
@@ -3098,6 +3110,7 @@ convert_datetime_to_pyobject(npy_datetime dt, PyArray_DatetimeMetaData *meta)
     }
     /* Otherwise return a date */
     else {
+        fprintf(stderr, "convert_datetime_to_pyobject: return using PyDate_FromDate\n");
         ret = PyDate_FromDate(dts.year, dts.month, dts.day);
     }
 
@@ -3133,7 +3146,9 @@ convert_timedelta_to_pyobject(npy_timedelta td, PyArray_DatetimeMetaData *meta)
     if (meta->base > NPY_FR_us ||
                     meta->base == NPY_FR_Y ||
                     meta->base == NPY_FR_M ||
+                    meta->base == NPY_FR_B ||
                     meta->base == NPY_FR_GENERIC) {
+        fprintf(stderr, "convert_timedelta_to_pyobject: return %lld\n", (long long)td);
         return PyLong_FromLongLong(td);
     }
 
@@ -3244,6 +3259,7 @@ cast_datetime_to_datetime(PyArray_DatetimeMetaData *src_meta,
 {
     npy_datetimestruct dts;
 
+    fprintf(stderr, "cast_datetime_to_datetime: source = %lld, bases: %d %d\n", (long long)src_dt, src_meta->base, dst_meta->base);
     /* If the metadata is the same, short-circuit the conversion */
     if (src_meta->base == dst_meta->base &&
             src_meta->num == dst_meta->num) {
