@@ -1355,14 +1355,16 @@ get_datetime_conversion_factor(PyArray_DatetimeMetaData *src_meta,
                 num *= (97 + 400*365);
                 denom *= 400*12*7;
             }
+            else if (dst_base == NPY_FR_B) {
+                num *= (97 + 400*365) * 5 / 7;
+                denom *= 400*12;
+                /* Business Day -> dst_base */
+                num *= get_datetime_units_factor(NPY_FR_B, dst_base);
+            }
             else {
                 /* Month -> Day */
                 num *= (97 + 400*365);
                 denom *= 400*12;
-                if (dst_base == NPY_FR_B) {
-                    num *= 5;
-                    denom *= 7;
-                }
                 /* Day -> dst_base */
                 num *= get_datetime_units_factor(NPY_FR_D, dst_base);
             }
