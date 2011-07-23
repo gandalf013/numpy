@@ -54,8 +54,6 @@ NPY_NO_EXPORT char *_datetime_strings[NPY_DATETIME_NUMUNITS] = {
     "generic"
 };
 
-#define ALOK_DEBUG  1
-
 /* Gets the day of the week for a datetime64[D] value */
 static int
 get_day_of_week(npy_datetime date)
@@ -68,7 +66,7 @@ get_day_of_week(npy_datetime date)
         day_of_week += 7;
     }
 
-#ifdef ALOK_DEBUG
+#ifdef DATETIME_DEBUG
     fprintf(stderr, "day_of_week: %lld -> %d\n",
             (long long)date, day_of_week);
 #endif
@@ -206,7 +204,9 @@ days_to_yearsdays(npy_int64 *days_)
         }
     }
 
+#ifdef DATETIME_DEBUG
     fprintf(stderr, "days_to_yearsdays: %lld -> %lld, return %lld\n", (long long)*days_, (long long)days, (long long)(year + 2000));
+#endif
     *days_ = days;
     return year + 2000;
 }
@@ -250,7 +250,9 @@ set_datetimestruct_days(npy_int64 days, npy_datetimestruct *dts)
         if (days < month_lengths[i]) {
             dts->month = i + 1;
             dts->day = days + 1;
+#ifdef DATETIME_DEBUG
             fprintf(stderr, "set_datetimestruct_days: setting month = %d, day = %lld\n", i+1, (long long)(days + 1));
+#endif
             return;
         }
         else {
@@ -275,7 +277,7 @@ get_nweekdays(npy_int64 first, npy_int64 second)
     }
     dotw_first = get_day_of_week(first);
     dotw_second = get_day_of_week(second);
-#ifdef ALOK_DEBUG
+#ifdef DATETIME_DEBUG
     fprintf(stderr, "get_nweekdays: %ld - %ld = ", (long)second, (long)first);
 #endif
     if (dotw_first > 4) {
@@ -291,7 +293,7 @@ get_nweekdays(npy_int64 first, npy_int64 second)
     if (swapped) {
         ndays = -ndays;
     }
-#ifdef ALOK_DEBUG
+#ifdef DATETIME_DEBUG
     fprintf(stderr, "%d\n", ndays);
 #endif
     return ndays;
@@ -351,7 +353,7 @@ convert_datetimestruct_to_datetime(PyArray_DatetimeMetaData *meta,
                 break;
             case NPY_FR_B:
                 ret = get_nweekdays(0, days);
-#ifdef ALOK_DEBUG
+#ifdef DATETIME_DEBUG
                 fprintf(stderr, "convert_datetimestruct_to_datetime: %d\n",
                         (int)ret);
 #endif
@@ -552,7 +554,7 @@ convert_datetime_to_datetimestruct(PyArray_DatetimeMetaData *meta,
                 /* Recall how C computes / and % with negative numbers */
                 absdays = 7 * ((dt - 1) / 5) + ((dt - 1) % 5) + 1;
             }
-#ifdef ALOK_DEBUG
+#ifdef DATETIME_DEBUG
             fprintf(stderr, "convert_datetime_to_datetimestruct: converted "
                     "dt=%d to %d\n", (int)dt, (int)absdays);
 #endif
@@ -1332,14 +1334,18 @@ get_datetime_conversion_factor(PyArray_DatetimeMetaData *src_meta,
                 num *= (97 + 400*365);
                 denom *= 400*7;
             }
+            else if (dst_base == NPY_FR_B) {
+                /* Luckily, 97 + 400*365 is divisible by 7, we can calculate
+                 * the number of business days in 400 years exactly. */
+                num *= (97 + 400*365) * 5 / 7;
+                denom *= 400;
+                /* Business Day -> dst_base */
+                num *= get_datetime_units_factor(NPY_FR_B, dst_base);
+            }
             else {
                 /* Year -> Day */
                 num *= (97 + 400*365);
                 denom *= 400;
-                if (dst_base == NPY_FR_B) {
-                    num *= 5;
-                    denom *= 7;
-                }
                 /* Day -> dst_base */
                 num *= get_datetime_units_factor(NPY_FR_D, dst_base);
             }
@@ -1426,7 +1432,7 @@ datetime_metadata_divides(
          * with each other).
          */
         if (dividend->base == NPY_FR_B || divisor->base == NPY_FR_B) {
-#ifdef ALOK_DEBUG
+#ifdef DATETIME_DEBUG
             fprintf(stderr, "datetime_metadata_divides: 0\n");
 #endif
             return 0;
@@ -1771,13 +1777,15 @@ compute_datetime_metadata_greatest_common_divisor(
                 else {
                     base = meta2->base;
                 }
+#ifdef DATETIME_DEBUG
                 fprintf(stderr, "compute_datetime_metadata_greatest_common_divisor: bases: %d, %d, using %d\n", (int)meta1->base, (int)meta2->base, (int)base);
+#endif
                 /*
                  * When combining business days with other units, end
                  * up with days instead of business days.
                  */
                 if (base == NPY_FR_B) {
-#ifdef ALOK_DEBUG
+#ifdef DATETIME_DEBUG
                     fprintf(stderr, "compute_datetime_metadata_greatest_common_divisor: converting business days to regular days\n");
 #endif
                     base = NPY_FR_D;
@@ -2384,7 +2392,9 @@ convert_pydatetime_to_datetimestruct(PyObject *obj, npy_datetimestruct *out,
     PyObject *tmp;
     int isleap;
 
+#ifdef DATETIME_DEBUG
     fprintf(stderr, "convert_pydatetime_to_datetimestruct\n");
+#endif
     /* Initialize the output to all zeros */
     memset(out, 0, sizeof(npy_datetimestruct));
     out->month = 1;
@@ -3073,7 +3083,9 @@ convert_datetime_to_pyobject(npy_datetime dt, PyArray_DatetimeMetaData *meta)
 {
     PyObject *ret = NULL;
     npy_datetimestruct dts;
+#ifdef DATETIME_DEBUG
     fprintf(stderr, "convert_datetime_to_pyobject: %lld\n", (long long)dt);
+#endif
 
     /*
      * Convert NaT (not-a-time) and any value with generic units
@@ -3110,7 +3122,9 @@ convert_datetime_to_pyobject(npy_datetime dt, PyArray_DatetimeMetaData *meta)
     }
     /* Otherwise return a date */
     else {
+#ifdef DATETIME_DEBUG
         fprintf(stderr, "convert_datetime_to_pyobject: return using PyDate_FromDate\n");
+#endif
         ret = PyDate_FromDate(dts.year, dts.month, dts.day);
     }
 
@@ -3148,7 +3162,9 @@ convert_timedelta_to_pyobject(npy_timedelta td, PyArray_DatetimeMetaData *meta)
                     meta->base == NPY_FR_M ||
                     meta->base == NPY_FR_B ||
                     meta->base == NPY_FR_GENERIC) {
+#ifdef DATETIME_DEBUG
         fprintf(stderr, "convert_timedelta_to_pyobject: return %lld\n", (long long)td);
+#endif
         return PyLong_FromLongLong(td);
     }
 
@@ -3259,7 +3275,9 @@ cast_datetime_to_datetime(PyArray_DatetimeMetaData *src_meta,
 {
     npy_datetimestruct dts;
 
+#ifdef DATETIME_DEBUG
     fprintf(stderr, "cast_datetime_to_datetime: source = %lld, bases: %d %d\n", (long long)src_dt, src_meta->base, dst_meta->base);
+#endif
     /* If the metadata is the same, short-circuit the conversion */
     if (src_meta->base == dst_meta->base &&
             src_meta->num == dst_meta->num) {

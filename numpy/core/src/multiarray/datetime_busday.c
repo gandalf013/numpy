@@ -23,7 +23,16 @@
 #include "datetime_busday.h"
 #include "datetime_busdaycal.h"
 
-#if 0
+#ifdef NPY_ENABLE_SEPARATE_COMPILATION
+/* This function is also defined in datetime.c.  When separate
+ * compilation is enabled, we compile this file and datetime.c separately, so we
+ * need it here.  When separate compilation is not enabled, this file is
+ * combined with datetime.c (and other files) as one translation unit, so we
+ * don't want to redefine the function here.
+ *
+ * TODO: Ideally, we should not be repeating ourselves, so find a better method
+ * of doing this.
+ */
 /* Gets the day of the week for a datetime64[D] value */
 static int
 get_day_of_week(npy_datetime date)

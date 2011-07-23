@@ -839,7 +839,9 @@ make_iso_8601_datetime(npy_datetimestruct *dts, char *outstr, int outlen,
         return 0;
     }
 
+#ifdef DATETIME_DEBUG
     fprintf(stderr, "make_iso_8601_datetime\n");
+#endif
     /* Only do local time within a reasonable year range */
     if ((dts->year <= 1800 || dts->year >= 10000) && tzoffset == -1) {
         local = 0;
